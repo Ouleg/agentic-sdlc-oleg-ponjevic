@@ -1,0 +1,17 @@
+@startuml c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+skinparam backgroundColor white
+
+title System Context - Mars Rover Simulator
+
+Person(operator, "Mission Operator", "Defines the rover start position, the terrain map with obstacles and the command sequence")
+
+System(rover, "Mars Rover Simulator", "Parses commands, moves the rover on a grid map, stops in front of obstacles and reports the final position and direction")
+
+System_Ext(logs, "Logging & Monitoring", "Stores execution logs and telemetry of every simulation run (e.g. AWS CloudWatch)")
+
+Rel(operator, rover, "Sends start position, map and commands; receives final position and direction", "HTTPS/JSON")
+Rel(rover, logs, "Writes execution logs and telemetry")
+
+SHOW_LEGEND()
+@enduml
