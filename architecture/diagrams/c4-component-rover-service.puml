@@ -1,0 +1,26 @@
+@startuml c4-component-rover-service
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+skinparam backgroundColor white
+
+title Component Diagram - Rover Service
+
+Person(operator, "Mission Operator", "Sends POST /simulate requests and receives results")
+System_Ext(logs, "Container Logs (stdout)", "Docker captures structured JSON written to stdout; read with docker logs")
+
+Container_Boundary(rover, "Rover Service (FastAPI / Uvicorn in Docker)") {
+  Component(route, "FastAPI Route Adapter", "Python 3.12 / adapter", "Entry point for POST /simulate: deserialises the JSON request into domain types, orchestrates validation and execution, serialises the SimulationResult or ValidationError to a JSON HTTP response")
+  Component(validator, "Validator", "Python 3.12 / domain", "Checks that the grid is non-empty, the start position is inside the grid and not on an obstacle, and the command string contains only F, L, R; raises ValidationError on failure")
+  Component(executor, "Command Executor", "Python 3.12 / domain", "Iterates the command list; calls the Navigator for every command via apply(command, position, heading, grid); records each blocked command with its zero-based index and reason; returns SimulationResult")
+  Component(navigator, "Navigator", "Python 3.12 / domain", "Computes next position for F and next heading for L/R; checks grid boundaries and obstacle positions; returns a new Position or a BlockedMove")
+  Component(logger, "Logger Adapter", "Python 3.12 / adapter", "Wraps Python logging; emits a structured JSON log entry containing the input summary, final outcome and any blocked commands")
+}
+
+Rel(operator, route, "POST /simulate", "HTTP/JSON")
+Rel(route, validator, "Validates input", "Python call - raises ValidationError")
+Rel(route, executor, "Executes commands (validation passed)", "Python call")
+Rel(executor, navigator, "Applies every command (F moves, L/R turns); checks obstacles and boundaries for F", "Python call")
+Rel(route, logger, "Logs request and outcome", "Python call")
+Rel(logger, logs, "Structured JSON via stdout", "stdout")
+
+SHOW_LEGEND()
+@enduml

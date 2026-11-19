@@ -1,0 +1,17 @@
+@startuml c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+skinparam backgroundColor white
+
+title System Context - Mars Rover Simulator
+
+Person(operator, "Mission Operator", "Defines the rover start position, the terrain map with obstacles and the command sequence")
+
+System(rover, "Mars Rover Simulator", "Parses commands, moves the rover on a grid map, stops in front of obstacles and reports the final position and heading")
+
+System_Ext(logs, "Container Logs (stdout)", "Docker captures structured JSON written to stdout; read with docker logs")
+
+Rel(operator, rover, "Sends start position, grid and commands; receives final position and heading", "HTTP/JSON")
+Rel(rover, logs, "Writes structured JSON log entries", "stdout")
+
+SHOW_LEGEND()
+@enduml

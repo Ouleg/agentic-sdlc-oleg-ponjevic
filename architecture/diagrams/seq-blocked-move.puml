@@ -1,0 +1,34 @@
+@startuml seq-blocked-move
+<style>
+document { BackGroundColor white }
+</style>
+skinparam backgroundColor white
+title Runtime: Simulation with Blocked F Command
+
+actor "Mission Operator" as operator
+participant "FastAPI Route Adapter" as route
+participant "Validator" as validator
+participant "Command Executor" as executor
+participant "Navigator" as navigator
+participant "Logger Adapter" as logger
+
+operator -> route : POST /simulate (HTTP/JSON)\n{start, heading, grid, commands}
+route -> validator : validate(request)
+validator --> route : ok (SimulationRequest)
+route -> executor : execute(request)
+loop for each command in list
+  executor -> navigator : apply(command, position, heading, grid)
+  alt F command - move is clear
+    navigator --> executor : new Position
+  else F command - obstacle or boundary
+    navigator --> executor : BlockedMove\n{index, reason}
+    note right of executor : rover keeps current\nposition and heading;\nexecution continues
+  else L or R command
+    navigator --> executor : new Heading (turn applied)
+  end
+end
+executor --> route : SimulationResult\n{position, heading, blocked=[{index, reason}]}
+route -> logger : log(request, result)
+logger --> route : ok
+route --> operator : HTTP 200\n{position, heading, blocked:[{index, reason}]}
+@enduml
