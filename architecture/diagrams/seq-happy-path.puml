@@ -1,0 +1,31 @@
+@startuml seq-happy-path
+<style>
+document { BackGroundColor white }
+</style>
+skinparam backgroundColor white
+title Runtime: Successful Simulation (no blocked commands)
+
+actor "Mission Operator" as operator
+participant "FastAPI Route Adapter" as route
+participant "Validator" as validator
+participant "Command Executor" as executor
+participant "Navigator" as navigator
+participant "Logger Adapter" as logger
+
+operator -> route : POST /simulate (HTTP/JSON)\n{start, heading, grid, commands}
+route -> validator : validate(request)
+validator --> route : ok (SimulationRequest)
+route -> executor : execute(request)
+loop for each command in list
+  executor -> navigator : apply(command, position, heading, grid)
+  alt F command
+    navigator --> executor : new Position (move applied)
+  else L or R command
+    navigator --> executor : new Heading (turn applied)
+  end
+end
+executor --> route : SimulationResult\n{position, heading, blocked=[]}
+route -> logger : log(request, result)
+logger --> route : ok
+route --> operator : HTTP 200\n{position, heading, blocked:[]}
+@enduml
