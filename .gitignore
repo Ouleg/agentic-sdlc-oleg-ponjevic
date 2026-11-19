@@ -24,3 +24,4 @@ Thumbs.db
 # Kiro
 .kiro/settings/
 notes/
+*.bak*
