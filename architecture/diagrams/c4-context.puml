@@ -8,10 +8,10 @@ Person(operator, "Mission Operator", "Defines the rover start position, the terr
 
 System(rover, "Mars Rover Simulator", "Parses commands, moves the rover on a grid map, stops in front of obstacles and reports the final position and direction")
 
-System_Ext(logs, "Logging & Monitoring", "Stores execution logs and telemetry of every simulation run (e.g. AWS CloudWatch)")
+System_Ext(logs, "Container Logs (stdout)", "Docker captures structured JSON written to stdout; read with docker logs")
 
-Rel(operator, rover, "Sends start position, map and commands; receives final position and direction", "HTTPS/JSON")
-Rel(rover, logs, "Writes execution logs and telemetry")
+Rel(operator, rover, "Sends start position, map and commands; receives final position and direction", "HTTP/JSON")
+Rel(rover, logs, "Writes structured JSON log entries", "stdout")
 
 SHOW_LEGEND()
 @enduml
