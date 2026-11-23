@@ -1,0 +1,20 @@
+@startuml seq-validation-error
+<style>
+document { BackGroundColor white }
+</style>
+skinparam backgroundColor white
+title Runtime: Invalid Input Rejected (FR-7)
+
+actor "Mission Operator" as operator
+participant "FastAPI Route Adapter" as route
+participant "Validator" as validator
+participant "Logger Adapter" as logger
+
+operator -> route : POST /simulate (HTTP/JSON)\n{invalid input}
+route -> validator : validate(request)
+validator --> route : raises ValidationError\n{message}
+note right of route : Command Executor is\nnever called
+route -> logger : log(request, error)
+logger --> route : ok
+route --> operator : HTTP 400\n{error: message}
+@enduml

@@ -1,0 +1,25 @@
+@startuml deployment
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+skinparam backgroundColor white
+
+title Deployment Diagram - Mars Rover Simulator
+
+Deployment_Node(dev, "Developer Workstation", "macOS / Linux") {
+  Deployment_Node(engine, "Docker Engine", "Docker / Docker Compose") {
+    Container(rover, "Rover Service", "Python 3.12 / FastAPI (Uvicorn) in Docker", "Serves POST /simulate; structured JSON logs to stdout")
+  }
+}
+
+Deployment_Node(gh, "GitHub Actions", "CI/CD runner") {
+  Container(pipeline, "CI/CD Pipeline", "GitHub Actions workflow", "Lint and security checks, unit and BDD tests, docker build, docker push to GHCR")
+}
+
+Deployment_Node(ghcr, "GitHub Container Registry", "OCI image registry") {
+  Container(image, "Rover Service image", "ghcr.io/OWNER/rover-service:TAG", "Published image; anyone with Docker can pull and run it locally")
+}
+
+Rel(pipeline, image, "Publishes image after tests pass", "docker push")
+Rel(image, rover, "Pulled and run locally", "docker pull / docker compose up")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,19 @@
+@startuml c4-container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+skinparam backgroundColor white
+
+title Container Diagram - Mars Rover Simulator
+
+Person(operator, "Mission Operator", "Sends simulation requests and receives results")
+
+System_Boundary(sys, "Mars Rover Simulator") {
+  Container(service, "Rover Service", "Python 3.12 / FastAPI (Uvicorn) in Docker", "FastAPI route adapter deserialises the POST /simulate JSON request, calls the pure domain core to validate input and execute commands, and serialises the response")
+}
+
+System_Ext(logs, "Container Logs (stdout)", "Docker captures structured JSON written to stdout; read with docker logs")
+
+Rel(operator, service, "POST /simulate", "HTTP/JSON")
+Rel(service, logs, "Writes structured JSON log entry", "stdout")
+
+SHOW_LEGEND()
+@enduml
