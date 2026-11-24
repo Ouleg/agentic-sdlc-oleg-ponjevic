@@ -27,7 +27,7 @@ them the simulator does not do what the kata asks.
 | 2 | `NAV-STORY-002` | AS A Mission Operator I WANT a forward move into an obstacle or off the grid to be skipped and reported with its index and reason SO THAT the rover never crashes and I know which commands were not executed | ⭐ | FR-5, FR-6; Ch. 6.2; ADR-008 | [navigation.md](navigation.md) |
 | 3 | `INPUT-STORY-001` | AS A Mission Operator I WANT invalid input (unknown command, start outside the grid or on an obstacle, empty grid) to be rejected with a clear error SO THAT I never get a result for a meaningless mission | | FR-7; Ch. 6.3; Ch. 8.1 | [mission-input.md](mission-input.md) |
 | 4 | `OPS-STORY-003` | AS A developer I WANT every merge to `main` to be tested, built and published to GHCR automatically SO THAT a working image is always available | | Ch. 7.5; QR-06; ADR-006 | [operations.md](operations.md) |
-| 5 | `OPS-STORY-001` | AS A developer I WANT to pull and run a published GHCR image tag with one command SO THAT anyone with Docker can try the service without a cloud account | | Ch. 7.4; Ch. 7.5 (stage 7); QR-05; RISK-03; ADR-009 | — |
+| 5 | `OPS-STORY-001` | AS A developer I WANT to pull and run a published GHCR image tag with one command SO THAT anyone with Docker can try the service without a cloud account | | Ch. 7.4; Ch. 7.5 (stage 7); QR-05; RISK-03; ADR-009 | [operations.md](operations.md) |
 | 6 | `OPS-STORY-002` | AS A developer I WANT `ValidationError` and unhandled exceptions to be logged distinctly and unhandled exceptions to return HTTP 500 with `{"error": "internal error"}` SO THAT every failure is visible with `docker logs` and callers get the right body | | Ch. 6.3; Ch. 8.2; Ch. 8.3; QR-09; ADR-005 | — |
 | 7 | `OPS-STORY-004` | AS A Mission Operator I WANT the generated OpenAPI contract to stay consistent with the domain types SO THAT clients built from `/openapi.json` do not drift from the API | | CV-5; ADR-007; RISK-02 | — |
 | 8 | `INPUT-STORY-002` | AS A developer I WANT oversized request bodies to be rejected SO THAT one client cannot exhaust the container's memory | | RISK-01, RISK-04 | — |
@@ -63,7 +63,7 @@ Ch. 6.2).
 | `NAV-STORY-001` | ✅ | ⬜ |
 | `NAV-STORY-002` | ✅ | ⬜ |
 | `INPUT-STORY-001` | ✅ | ⬜ |
-| `OPS-STORY-001` | ⬜ | ⬜ |
+| `OPS-STORY-001` | ✅ | ⬜ |
 | `OPS-STORY-002` | ⬜ | ⬜ |
 | `OPS-STORY-003` | ✅ | ⬜ |
 | `OPS-STORY-004` | ⬜ | ⬜ |
