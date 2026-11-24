@@ -50,7 +50,7 @@ shortcomings accepted deliberately in the MVP. Each item has a priority
 | **Description** | FastAPI and Uvicorn do not impose a small default request-body limit. A grid with millions of obstacle coordinates or a command string of extreme length could consume significant memory and CPU inside the single container. |
 | **Impact** | Very large requests could exhaust container memory (OOM kill) or stall the event loop; no gateway returns an early HTTP 413, so the caller may get an unclear error. |
 | **Likelihood** | Low — the kata specifies a rectangular grid with a modest number of obstacles; no realistic input approaches these limits. |
-| **Mitigation** | Document effective input-size limits via the generated OpenAPI spec and add an explicit body-size cap and validation in the FastAPI Route Adapter (or a reverse proxy). If large grids become a requirement, evaluate streaming or chunked processing and record it as a new ADR. |
+| **Mitigation** | Document effective input-size limits via the generated OpenAPI spec and add an explicit body-size cap and validation in the FastAPI Route Adapter (or a reverse proxy). The cap is `MAX_BODY_BYTES = 65536` bytes (64 KiB), enforced before deserialisation (Ch. 8.1): a larger body gets HTTP 413 `{"error": "<message>"}` and one `WARNING` log entry with `event` `payload_too_large`, and no simulation runs. If large grids become a requirement, evaluate streaming or chunked processing and record it as a new ADR. |
 
 ---
 

@@ -25,6 +25,13 @@ empty command list (zero commands is valid; the rover stays at the start positio
 `{"error": "<message>"}`. All other unhandled exceptions propagate as HTTP 500
 `{"error": "internal error"}` (see §8.2).
 
+**Request body-size cap (RISK-04):** the FastAPI Route Adapter enforces
+`MAX_BODY_BYTES = 65536` bytes (64 KiB) before deserialisation. A body larger than
+65536 bytes is rejected with HTTP 413 `{"error": "<message>"}`; the FastAPI Route
+Adapter logs one `WARNING` entry with `event` `payload_too_large`, and no
+`Validator` or `CommandExecutor` call follows. The 65536-byte cap is published in
+the generated `/openapi.json` (CV-5, ADR-007).
+
 ## 8.2 Error Handling
 
 **Principle:** errors are classified at the boundary and never leak internal detail
