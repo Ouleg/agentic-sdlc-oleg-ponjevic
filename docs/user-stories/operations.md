@@ -311,3 +311,238 @@ Not applicable - no events: all interaction with the published image is a synchr
 | OPS-INFRA-001.1-S2 | OPS-INFRA-001.1 → OPS-STORY-001 | RISK-03; Ch. 7.4 | no `Pulling` step after pre-pull, status `200`, exact body |
 | OPS-INFRA-001.1-S3 | OPS-INFRA-001.1 → OPS-STORY-001 | Ch. 7.4 | unpublished tag: non-zero exit, no container, no build |
 | NAV-INFRA-001.2-S4 | NAV-INFRA-001.2 → OPS-STORY-001 (reused) | Ch. 8.3; TC-6; QR-08; ADR-005 | one INFO log line with `blocked_count` `0` |
+
+---
+
+## OPS-STORY-002 — Distinguish validation and unhandled errors
+
+**AS A** developer
+**I WANT** `ValidationError` and unhandled exceptions to be logged distinctly and unhandled exceptions to return HTTP 500 with `{"error": "internal error"}`
+**SO THAT** every failure is visible with `docker logs` and callers get the right body
+
+**Architecture:** Error handling (Ch. 8.2) · Logging (Ch. 8.3) · HTTP mapping (Ch. 8.1) · FastAPI Route Adapter and Logger Adapter (Ch. 5.2) · QR-08, QR-09 (Ch. 10) · TC-6 · ADR-005 · ADR-009
+**Priority:** 6 · Supporting
+**Depends on:** NAV-STORY-001 (Route Adapter and Logger Adapter), INPUT-STORY-001 (ValidationError → HTTP 400 path), NAV-INFRA-001.1 / NAV-INFRA-001.2 (container and log channel)
+**Implementation order:** reuse NAV-INFRA-001.1 / NAV-INFRA-001.2 with the added scenarios below → OPS-BE-002.1 → OPS-BE-002.2 → end-to-end scenarios below
+
+### SCENARIO 1: A validation error returns 400 and one WARNING log entry
+
+**Scenario ID**: OPS-STORY-002-S1
+
+**GIVEN**
+* The Rover Service is running in Docker
+
+**WHEN**
+* I send `POST /simulate` with `{"start": {"x": 0, "y": 0, "heading": "N"}, "grid": {"width": 3, "height": 3, "obstacles": []}, "commands": "FFX"}` and read `docker logs`
+
+**THEN**
+* The response status is `400`
+* The body has exactly one field `error`, whose value is a non-empty string containing `"X"`
+* `docker logs` shows exactly one new JSON line for that request
+* The line has `level` `"WARNING"` and `event` `"validation_error"`, with `result` `null` and `error` containing `"X"`
+
+### SCENARIO 2: An unhandled exception returns 500 and one ERROR log entry
+
+**Scenario ID**: OPS-STORY-002-S2
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+* The Command Executor is replaced by a stub that raises `RuntimeError("boom")`
+* The Logger Adapter writes to a captured stdout stream (the same channel Docker logs)
+
+**WHEN**
+* I post `{"start": {"x": 0, "y": 0, "heading": "N"}, "grid": {"width": 3, "height": 3, "obstacles": []}, "commands": "F"}` to `/simulate`
+
+**THEN**
+* The response status is `500`
+* The response body is exactly `{"error": "internal error"}` and does not contain `"boom"`
+* The captured stdout contains exactly one new JSON line with `level` `"ERROR"` and `event` `"unhandled_error"`
+* The line contains the text `Traceback (most recent call last)` and `RuntimeError: boom`
+
+### SCENARIO 3: The two error classes are distinguishable by level and event alone
+
+**Scenario ID**: OPS-STORY-002-S3
+
+**GIVEN**
+* One validation-error request and one unhandled-exception request were processed as in S1 and S2
+* Their two JSON log entries are available in one log stream
+
+**WHEN**
+* I compare only the `level` and `event` fields of the two entries
+
+**THEN**
+* The pairs are `("WARNING", "validation_error")` and `("ERROR", "unhandled_error")` in that order
+* The two pairs are different, with no need to parse the message text (QR-09)
+
+### Frontend sub-stories
+
+Not applicable - the system has no user interface (Ch. 3.4).
+
+### Backend sub-stories
+
+#### OPS-BE-002.1 — Route Adapter classifies errors at the HTTP boundary
+
+**AS A** developer
+**I WANT** the FastAPI Route Adapter to catch `ValidationError` as HTTP 400 and let unhandled exceptions become HTTP 500 with a fixed body
+**SO THAT** internal exception detail never leaks to the caller
+
+**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Ch. 8.1–8.2 (error-handling pattern) · Ch. 8.4 (no internal detail) · ADR-007 · QR-09
+
+##### SCENARIO 1: An unhandled exception becomes 500 with a fixed body
+
+**Scenario ID**: OPS-BE-002.1-S1
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+* A stub replaces `Command Executor.execute` and raises `RuntimeError("boom")`
+
+**WHEN**
+* I post `{"start": {"x": 0, "y": 0, "heading": "N"}, "grid": {"width": 3, "height": 3, "obstacles": []}, "commands": "F"}` to `/simulate`
+
+**THEN**
+* The response status is `500`
+* The body is exactly `{"error": "internal error"}`
+* The string `"boom"` does not appear in the response body
+
+##### SCENARIO 2: A ValidationError stays 400 and does not use the 500 path
+
+**Scenario ID**: OPS-BE-002.1-S2
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+* A spy records calls to `logger.warning` and `logger.exception`
+
+**WHEN**
+* I post `{"start": {"x": 0, "y": 0, "heading": "N"}, "grid": {"width": 3, "height": 3, "obstacles": []}, "commands": "FFX"}` to `/simulate`
+
+**THEN**
+* The response status is `400`
+* The body has exactly one field `error`, whose value contains `"X"`
+* `logger.warning` was called with event `"validation_error"` and `logger.exception` was not called
+
+---
+
+#### OPS-BE-002.2 — Logger Adapter emits distinct JSON error entries
+
+**AS A** developer
+**I WANT** the Logger Adapter to emit one JSON entry per error with `WARNING`/`validation_error` or `ERROR`/`unhandled_error`
+**SO THAT** both failure classes are identifiable in `docker logs` without reading message text
+
+**Architecture:** Logger Adapter (Ch. 5.2) · Ch. 8.2 (log calls) · Ch. 8.3 (format, mandatory fields, levels) · ADR-005 · QR-08, QR-09
+
+##### SCENARIO 1: A validation warning contains the mandatory fields
+
+**Scenario ID**: OPS-BE-002.2-S1
+
+**GIVEN**
+* The Logger Adapter is configured with a captured stdout stream
+* A `ValidationError` with message `"unknown command X"` was raised for the request from OPS-STORY-002-S1
+
+**WHEN**
+* The Logger Adapter writes the validation-error entry
+
+**THEN**
+* The captured stream contains one JSON line with `level` `"WARNING"`, `event` `"validation_error"`, `error` `"unknown command X"` and `result` `null`
+* The line contains the fields `request_id`, `grid`, `start`, `command_count` and `duration_ms`, with `command_count` `3`
+
+##### SCENARIO 2: An unhandled error entry includes the traceback
+
+**Scenario ID**: OPS-BE-002.2-S2
+
+**GIVEN**
+* The Logger Adapter is configured with a captured stdout stream
+* `RuntimeError("boom")` was caught by the Route Adapter and logged with `exc_info=True`
+
+**WHEN**
+* The Logger Adapter writes the unhandled-exception entry
+
+**THEN**
+* The captured stream contains one JSON line with `level` `"ERROR"` and `event` `"unhandled_error"`
+* The line contains all fields listed in Ch. 8.3, has `result` `null`, and includes `Traceback (most recent call last)` and `RuntimeError: boom`
+
+##### SCENARIO 3: Level and event alone separate the two entries
+
+**Scenario ID**: OPS-BE-002.2-S3
+
+**GIVEN**
+* The two JSON entries from OPS-BE-002.2-S1 and OPS-BE-002.2-S2 are in the captured stream
+
+**WHEN**
+* I read only the `level` and `event` fields of each entry
+
+**THEN**
+* The first entry yields `("WARNING", "validation_error")` and the second yields `("ERROR", "unhandled_error")`
+* Neither pair occurs in the other entry
+
+---
+
+### Infrastructure sub-stories
+
+Reused from NAV-STORY-001 and OPS-STORY-001 — no new deployment or log channel is introduced.
+
+**Reused `NAV-INFRA-001.1` — Dockerfile + docker-compose.yml starting the Rover Service. Architecture: Ch. 7.1–7.3, TC-2, TC-3, ADR-009.**
+
+##### ADDITIONAL SCENARIO S5: Error responses do not stop the container
+
+**Scenario ID**: NAV-INFRA-001.1-S5
+
+**GIVEN**
+* The service was started with `docker compose up -d` and its container ID is recorded
+
+**WHEN**
+* I send the invalid request from OPS-STORY-002-S1, then the valid request from NAV-STORY-001-S1 to `http://127.0.0.1:8000/simulate`
+
+**THEN**
+* The first response status is `400` and the second is `200`
+* The container ID is unchanged and the container is still running
+
+**Reused `NAV-INFRA-001.2` — one structured JSON log entry per request. Architecture: Ch. 8.3, TC-6, QR-08, QR-09, ADR-005.**
+
+##### ADDITIONAL SCENARIO S5: A rejected request emits no success entry
+
+**Scenario ID**: NAV-INFRA-001.2-S5
+
+**GIVEN**
+* The Rover Service is running in Docker and the current `docker logs` line count is recorded
+
+**WHEN**
+* I send the invalid request from OPS-STORY-002-S1
+
+**THEN**
+* `docker logs` shows exactly one new JSON line for that request
+* The line has `level` `"WARNING"` and `event` `"validation_error"`
+* No new line with `level` `"INFO"` or `event` `"simulation_complete"` appears
+
+##### ADDITIONAL SCENARIO S6: An ERROR entry reaches the captured stdout channel
+
+**Scenario ID**: NAV-INFRA-001.2-S6
+
+**GIVEN**
+* The Logger Adapter writes to the stdout stream captured by Docker (TC-6)
+* `RuntimeError("boom")` was logged by the Route Adapter with `exc_info=True`
+
+**WHEN**
+* The Logger Adapter emits the unhandled-error entry
+
+**THEN**
+* The stdout stream contains exactly one new JSON line with `level` `"ERROR"` and `event` `"unhandled_error"`
+* The line includes `Traceback (most recent call last)`, so it is readable from `docker logs` in the running container
+
+Not applicable - no simulation data store: errors are returned in the HTTP response and logged to stdout; nothing is persisted (ADR-001, TC-4, Ch. 4.1).
+Not applicable - no events: error responses are synchronous HTTP responses; no message broker is used (ADR-007, Ch. 3.2).
+
+### Traceability
+
+| Scenario ID | Parent story | Architecture section | Testable assertion (THEN) |
+|-------------|--------------|----------------------|---------------------------|
+| OPS-STORY-002-S1 | OPS-STORY-002 | Ch. 8.1–8.3; QR-09 | status `400`, one `error` field, one WARNING `validation_error` line |
+| OPS-STORY-002-S2 | OPS-STORY-002 | Ch. 8.2; QR-09; ADR-005 | status `500`, body `{"error": "internal error"}`, one ERROR line with traceback |
+| OPS-STORY-002-S3 | OPS-STORY-002 | QR-09; Ch. 8.3 | pairs `("WARNING","validation_error")`, `("ERROR","unhandled_error")` |
+| OPS-BE-002.1-S1 | OPS-BE-002.1 → OPS-STORY-002 | Ch. 5.2 Route Adapter; Ch. 8.2 | status `500`, exact body, no `"boom"` in response |
+| OPS-BE-002.1-S2 | OPS-BE-002.1 → OPS-STORY-002 | Ch. 8.1–8.2; ADR-007 | status `400`, `logger.warning` called, `logger.exception` not called |
+| OPS-BE-002.2-S1 | OPS-BE-002.2 → OPS-STORY-002 | Ch. 8.3; ADR-005; QR-08 | one WARNING line with `error` and mandatory fields |
+| OPS-BE-002.2-S2 | OPS-BE-002.2 → OPS-STORY-002 | Ch. 8.2–8.3; QR-09 | one ERROR line with traceback text |
+| OPS-BE-002.2-S3 | OPS-BE-002.2 → OPS-STORY-002 | QR-09 Verification | two distinct level/event pairs |
+| NAV-INFRA-001.1-S5 | NAV-INFRA-001.1 → OPS-STORY-002 (reused) | Ch. 7.1–7.3; ADR-009 | `400` then `200`, same container ID still running |
+| NAV-INFRA-001.2-S5 | NAV-INFRA-001.2 → OPS-STORY-002 (reused) | Ch. 8.3; QR-08, QR-09; ADR-005 | one WARNING line, no INFO success line |
+| NAV-INFRA-001.2-S6 | NAV-INFRA-001.2 → OPS-STORY-002 (reused) | Ch. 8.2–8.3; TC-6; ADR-005 | one ERROR line on stdout with traceback |
