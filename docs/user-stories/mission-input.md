@@ -284,3 +284,166 @@ Not applicable - no events: rejections are returned synchronously in the `POST /
 | INPUT-BE-001.2-S4 | INPUT-BE-001.2 → INPUT-STORY-001 | Ch. 8.1 Contract; ADR-004 | status `200`, unchanged `(3, 1)`/`W`, empty `blocked` |
 | NAV-INFRA-001.1-S4 | NAV-INFRA-001.1 → INPUT-STORY-001 (reused) | Ch. 7.1–7.3; ADR-009 | `400` on `127.0.0.1:8000`, next valid request `200` |
 | NAV-INFRA-001.2-S3 | NAV-INFRA-001.2 → INPUT-STORY-001 (reused) | Ch. 8.3; QR-08, QR-09; ADR-005 | one WARNING log line with `validation_error` and `result` `null` |
+
+---
+
+## INPUT-STORY-002 — Reject oversized request bodies
+
+**AS A** developer
+**I WANT** oversized request bodies to be rejected before a Simulation starts
+**SO THAT** one client cannot exhaust the container's memory
+
+**Architecture:** RISK-01 (body-size cap mitigation), RISK-04 (large grid / long command list, explicit cap plus OpenAPI documentation) · FastAPI Route Adapter (Ch. 5.2) · Ch. 8.4 (untrusted input) · CV-5 (OpenAPI schema) · ADR-007 · DEBT-04 · Ch. 7.1 (single container)
+**Body-size cap:** 65536 bytes (64 KiB), fixed in Ch. 8.1 and RISK-04 (Mitigation); enforced by the FastAPI Route Adapter before deserialisation, answered with HTTP 413 and documented in `/openapi.json`.
+**Priority:** 8 · Supporting
+**Depends on:** NAV-STORY-001 (Route Adapter, container, `POST /simulate`) and INPUT-STORY-001 (HTTP error mapping)
+**Implementation order:** reuse NAV-INFRA-001.1 / NAV-INFRA-001.2 with the added scenarios below → INPUT-BE-002.1 → end-to-end scenarios below
+
+### SCENARIO 1: A body one byte over the cap is rejected without starting a Simulation
+
+**Scenario ID**: INPUT-STORY-002-S1
+
+**GIVEN**
+* The Rover Service is running
+* `MAX_BODY_BYTES` is 65536 bytes (64 KiB), the cap enforced by the FastAPI Route Adapter (RISK-04)
+* The request body is valid JSON with grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and a `commands` string padded so the whole body is exactly `MAX_BODY_BYTES + 1 = 65537` bytes
+
+**WHEN**
+* I send `POST /simulate` with that body
+
+**THEN**
+* The response status is `413`
+* The body has exactly one field `error`, whose value is a non-empty string
+* The body has no `position`, `heading` or `blocked` fields
+* A subsequent valid request from NAV-STORY-001-S1 still returns `200`
+
+### SCENARIO 2: A body exactly at the cap is served normally
+
+**Scenario ID**: INPUT-STORY-002-S2
+
+**GIVEN**
+* The Rover Service is running
+* The request body has grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and `commands` consisting of `N` characters `F`, where `N` is chosen so the whole body is exactly `MAX_BODY_BYTES` = 65536 bytes
+
+**WHEN**
+* I send `POST /simulate` with that body
+
+**THEN**
+* The response status is `200`
+* The final position is `(0, 0)` and the final heading is `N`
+* The `blocked` list has exactly `N` entries, entry `i` being `{"index": i, "reason": "boundary"}` for every `i` from `0` to `N - 1`
+
+### Frontend sub-stories
+
+Not applicable - the system has no user interface (Ch. 3.4).
+
+### Backend sub-stories
+
+#### INPUT-BE-002.1 — Route Adapter caps the request body before deserialisation
+
+**AS A** developer
+**I WANT** the FastAPI Route Adapter to reject a request body larger than `MAX_BODY_BYTES` (65536 bytes / 64 KiB) with HTTP 413 and no domain call
+**SO THAT** an oversized grid or Command String cannot consume the container's memory (RISK-04)
+
+**Architecture:** FastAPI Route Adapter (Ch. 5.2) · RISK-01, RISK-04 · Ch. 8.4 · DEBT-04 · CV-5 · ADR-007 · QR-07
+
+##### SCENARIO 1: An oversized body is rejected before the Command Executor runs
+
+**Scenario ID**: INPUT-BE-002.1-S1
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+* A spy replaces `Command Executor.execute` and counts calls
+* The body from INPUT-STORY-002-S1 is `MAX_BODY_BYTES + 1 = 65537` bytes
+
+**WHEN**
+* I post that body to `/simulate`
+
+**THEN**
+* The response status is `413`
+* The body has exactly one field `error`, whose value is a non-empty string
+* The spy recorded zero calls to `execute`
+
+##### SCENARIO 2: A body at the cap is accepted
+
+**Scenario ID**: INPUT-BE-002.1-S2
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+* The body from INPUT-STORY-002-S2 is exactly `MAX_BODY_BYTES` = 65536 bytes
+
+**WHEN**
+* I post that body to `/simulate`
+
+**THEN**
+* The response status is `200`
+* The body is `{"position": {"x": 0, "y": 0}, "heading": "N", "blocked": [...]}` where the `blocked` array has `N` entries `{"index": i, "reason": "boundary"}`
+
+##### SCENARIO 3: The cap is documented in the generated contract
+
+**Scenario ID**: INPUT-BE-002.1-S3
+
+**GIVEN**
+* The FastAPI application is started with `TestClient`
+
+**WHEN**
+* I request `GET /openapi.json` and search the document text
+
+**THEN**
+* The response status is `200`
+* The document contains the decimal string `65536` (the value of `MAX_BODY_BYTES`) in a description of the `/simulate` request body
+* The document contains the path `/simulate` with method `post`
+
+---
+
+### Infrastructure sub-stories
+
+Reused from NAV-STORY-001 — no new deployment or log channel is introduced.
+
+**Reused `NAV-INFRA-001.1` — Dockerfile + docker-compose.yml starting the Rover Service. Architecture: Ch. 7.1–7.3, TC-2, TC-3, ADR-009; RISK-04 (single-container memory).**
+
+##### ADDITIONAL SCENARIO S6: The container survives an oversized request
+
+**Scenario ID**: NAV-INFRA-001.1-S6
+
+**GIVEN**
+* The service was started with `docker compose up -d` and its container ID is recorded
+
+**WHEN**
+* I send the oversized body from INPUT-STORY-002-S1, followed by the valid request from NAV-STORY-001-S1, to `http://127.0.0.1:8000/simulate`
+
+**THEN**
+* The first response status is `413` with an `error` field and the second is `200`
+* The container ID is unchanged and the container is still running
+
+**Reused `NAV-INFRA-001.2` — one structured JSON log entry per request. Architecture: Ch. 8.3, TC-6, QR-08, ADR-005; RISK-04 (rejection visibility).**
+
+##### ADDITIONAL SCENARIO S7: An oversized rejection is logged once
+
+**Scenario ID**: NAV-INFRA-001.2-S7
+
+**GIVEN**
+* The Rover Service is running in Docker and the current `docker logs` line count is recorded
+
+**WHEN**
+* I send one oversized request from INPUT-STORY-002-S1
+
+**THEN**
+* `docker logs` shows exactly one new JSON line for that request
+* The line has `level` `"WARNING"`, `event` `"payload_too_large"`, a non-empty `error` string and `result` `null`
+* No simulation-complete (`INFO`) entry appears for that request
+
+Not applicable - no simulation data store: an oversized body is rejected in memory and never persisted; the service remains stateless (ADR-001, TC-4, Ch. 4.1).
+Not applicable - no events: rejections are returned synchronously as HTTP 413 responses; no queue or broker is involved (ADR-007, Ch. 3.2).
+
+### Traceability
+
+| Scenario ID | Parent story | Architecture section | Testable assertion (THEN) |
+|-------------|--------------|----------------------|---------------------------|
+| INPUT-STORY-002-S1 | INPUT-STORY-002 | RISK-01, RISK-04; Ch. 8.4 | status `413`, one `error` field, next valid request `200` |
+| INPUT-STORY-002-S2 | INPUT-STORY-002 | RISK-04; FR-5; ADR-008 | status `200`, `(0, 0)`/`N`, `N` boundary blocks with indices `0..N-1` |
+| INPUT-BE-002.1-S1 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 5.2 Route Adapter; RISK-04; DEBT-04 | status `413`, `error` field, `execute` called zero times |
+| INPUT-BE-002.1-S2 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 8.1; ADR-008 | status `200`, exact body with `N` boundary blocks |
+| INPUT-BE-002.1-S3 | INPUT-BE-002.1 → INPUT-STORY-002 | CV-5; ADR-007; RISK-04 | `/openapi.json` contains `65536` (`MAX_BODY_BYTES`) and `/simulate` `post` |
+| NAV-INFRA-001.1-S6 | NAV-INFRA-001.1 → INPUT-STORY-002 (reused) | Ch. 7.1–7.3; RISK-04; ADR-009 | `413` then `200`, same container ID still running |
+| NAV-INFRA-001.2-S7 | NAV-INFRA-001.2 → INPUT-STORY-002 (reused) | Ch. 8.3; QR-08; ADR-005 | one WARNING `payload_too_large` line, non-empty `error`, no INFO success line |
