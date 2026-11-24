@@ -24,7 +24,7 @@ them the simulator does not do what the kata asks.
 | Priority | Story ID | Story | Core | Architecture reference | Bundle |
 |----------|----------|-------|------|------------------------|--------|
 | 1 | `NAV-STORY-001` | AS A Mission Operator I WANT to send a start position, heading, grid and command string and receive the rover's final position and heading SO THAT I know where the rover ends up | ⭐ | FR-1 – FR-4, FR-6; Ch. 5.2; Ch. 6.1 | [navigation.md](navigation.md) |
-| 2 | `NAV-STORY-002` | AS A Mission Operator I WANT a forward move into an obstacle or off the grid to be skipped and reported with its index and reason SO THAT the rover never crashes and I know which commands were not executed | ⭐ | FR-5, FR-6; Ch. 6.2; ADR-008 | — |
+| 2 | `NAV-STORY-002` | AS A Mission Operator I WANT a forward move into an obstacle or off the grid to be skipped and reported with its index and reason SO THAT the rover never crashes and I know which commands were not executed | ⭐ | FR-5, FR-6; Ch. 6.2; ADR-008 | [navigation.md](navigation.md) |
 | 3 | `INPUT-STORY-001` | AS A Mission Operator I WANT invalid input (unknown command, start outside the grid or on an obstacle, empty grid) to be rejected with a clear error SO THAT I never get a result for a meaningless mission | | FR-7; Ch. 6.3; Ch. 8.1 | — |
 | 4 | `OPS-STORY-003` | AS A developer I WANT every merge to `main` to be tested, built and published to GHCR automatically SO THAT a working image is always available | | Ch. 7.5; QR-06; ADR-006 | — |
 | 5 | `OPS-STORY-001` | AS A developer I WANT to pull and run a published GHCR image tag with one command SO THAT anyone with Docker can try the service without a cloud account | | Ch. 7.4; Ch. 7.5 (stage 7); QR-05; RISK-03; ADR-009 | — |
@@ -55,13 +55,13 @@ Ch. 6.2).
 
 ## Progress
 
-📊 Pareto progress: 1/2 core stories (50 % of 20 % core stories)
-🎯 Core functionality coverage: ~40 % of 80 % target
+📊 Pareto progress: 2/2 core stories (100 % of 20 % core stories)
+🎯 Core functionality coverage: ~80 % of 80 % target
 
 | Story | Bundle written | Implemented |
 |-------|----------------|-------------|
 | `NAV-STORY-001` | ✅ | ⬜ |
-| `NAV-STORY-002` | ⬜ | ⬜ |
+| `NAV-STORY-002` | ✅ | ⬜ |
 | `INPUT-STORY-001` | ⬜ | ⬜ |
 | `OPS-STORY-001` – `004` | ⬜ | ⬜ |
 | `INPUT-STORY-002` | ⬜ | ⬜ |
