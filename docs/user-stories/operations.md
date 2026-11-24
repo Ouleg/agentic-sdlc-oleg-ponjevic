@@ -546,3 +546,148 @@ Not applicable - no events: error responses are synchronous HTTP responses; no m
 | NAV-INFRA-001.1-S5 | NAV-INFRA-001.1 → OPS-STORY-002 (reused) | Ch. 7.1–7.3; ADR-009 | `400` then `200`, same container ID still running |
 | NAV-INFRA-001.2-S5 | NAV-INFRA-001.2 → OPS-STORY-002 (reused) | Ch. 8.3; QR-08, QR-09; ADR-005 | one WARNING line, no INFO success line |
 | NAV-INFRA-001.2-S6 | NAV-INFRA-001.2 → OPS-STORY-002 (reused) | Ch. 8.2–8.3; TC-6; ADR-005 | one ERROR line on stdout with traceback |
+
+---
+
+## OPS-STORY-004 — Keep the OpenAPI contract consistent with domain types
+
+**AS A** Mission Operator
+**I WANT** the generated OpenAPI contract to stay consistent with the domain types
+**SO THAT** clients built from `/openapi.json` do not drift from the API
+
+**Architecture:** CV-5 (JSON schema from route models) · ADR-007 (generated `/openapi.json`, no static spec) · RISK-02 (contract drift, CI contract test) · FastAPI Route Adapter and domain types (Ch. 5.2) · DEBT-02 · Ch. 7.5 (CI stages) · Glossary: OpenAPI, Simulation Request, Simulation Result (Ch. 12)
+**Priority:** 7 · Supporting
+**Depends on:** NAV-STORY-001 (Route Adapter, domain types, `/openapi.json`) and OPS-STORY-003 (CI pipeline that runs the contract check)
+**Implementation order:** reuse OPS-INFRA-003.1 / OPS-INFRA-003.2 with the added scenarios below → OPS-BE-004.1 → end-to-end scenarios below
+
+### SCENARIO 1: A client built from the contract can run a Simulation
+
+**Scenario ID**: OPS-STORY-004-S1
+
+**GIVEN**
+* The Rover Service is running
+* The OpenAPI document at `/openapi.json` is the only schema description available (no static spec file, ADR-007)
+
+**WHEN**
+* I request `GET /openapi.json`, resolve its `$ref` entries, and post the request from NAV-STORY-001-S1 using field names taken from that document
+
+**THEN**
+* The `GET` response status is `200`
+* The document contains path `/simulate` with method `post`
+* The request schema has exactly the fields `start`, `grid` and `commands`
+* The HTTP 200 response schema has exactly the fields `position`, `heading` and `blocked`; each `blocked` item has exactly `index` and `reason`
+* The `heading` field accepts exactly `N`, `S`, `E`, `W` and the `reason` field exactly `obstacle`, `boundary`
+* The `POST /simulate` response status is `200` and its body is `{"position": {"x": 2, "y": 2}, "heading": "E", "blocked": []}`
+
+### SCENARIO 2: A route-model divergence fails the build before publication
+
+**Scenario ID**: OPS-STORY-004-S2
+
+**GIVEN**
+* PR commit `4d5e6f7` renames the route response model field `heading` to `direction` while `SimulationResult` still defines `heading` (RISK-02)
+
+**WHEN**
+* The GitHub Actions workflow runs the contract check comparing `/openapi.json` with schemas derived from the domain types
+
+**THEN**
+* The contract-check step exits with a non-zero status and its log names both `heading` and `direction`
+* The job conclusion is `failure`
+* No tag `ghcr.io/OWNER/rover-service:4d5e6f7` is pushed to GHCR
+* `ghcr.io/OWNER/rover-service:latest` still resolves to the image built from commit `1a2b3c4`
+
+### Frontend sub-stories
+
+Not applicable - the system has no user interface (Ch. 3.4).
+
+### Backend sub-stories
+
+#### OPS-BE-004.1 — Route Adapter models mirror the domain types
+
+**AS A** developer
+**I WANT** a contract test that compares the FastAPI-generated schema with schemas derived from `SimulationRequest` and `SimulationResult`
+**SO THAT** a hand-written mapping change cannot silently diverge (RISK-02)
+
+**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Domain types (Ch. 5.2, ADR-004) · ADR-007 · CV-5 · RISK-02 · DEBT-02 · QR-07
+
+##### SCENARIO 1: The generated schemas match the domain types
+
+**Scenario ID**: OPS-BE-004.1-S1
+
+**GIVEN**
+* The FastAPI application is started with FastAPI's `TestClient`
+
+**WHEN**
+* I resolve all `$ref` entries in `GET /openapi.json` and compare the request and HTTP 200 response schemas with schemas derived from `SimulationRequest` and `SimulationResult`
+
+**THEN**
+* The comparison passes with zero differing fields
+* The request model fields are `start`, `grid`, `commands` and the response model fields are `position`, `heading`, `blocked`
+
+##### SCENARIO 2: A renamed response field is detected
+
+**Scenario ID**: OPS-BE-004.1-S2
+
+**GIVEN**
+* A test-only variant of the route adapter renames the response field `heading` to `direction` while `SimulationResult` keeps `heading`
+
+**WHEN**
+* The same contract comparison runs against that variant
+
+**THEN**
+* An `AssertionError` is raised
+* Its message contains `heading` and `direction`
+* The comparison does not pass
+
+---
+
+### Infrastructure sub-stories
+
+Reused from OPS-STORY-003 — the existing GitHub Actions workflow gains one contract-check step (RISK-02 mitigation).
+
+**Reused `OPS-INFRA-003.1` — GitHub Actions workflow that builds and publishes the image. Architecture: Ch. 7.5, OC-4, ADR-006; RISK-02 mitigation (CI contract test).**
+
+##### ADDITIONAL SCENARIO S3: The CI contract check blocks publication on divergence
+
+**Scenario ID**: OPS-INFRA-003.1-S3
+
+**GIVEN**
+* PR commit `4d5e6f7` contains the response-model divergence from OPS-STORY-004-S2
+
+**WHEN**
+* The PR workflow run finishes
+
+**THEN**
+* The run log shows a contract-check step that exits non-zero and names `heading` and `direction`
+* The job conclusion is `failure`
+* No `docker push` command runs and no `ghcr.io/OWNER/rover-service:4d5e6f7` tag appears in GHCR
+
+**Reused `OPS-INFRA-003.2` — Pipeline failure visibility. Architecture: Ch. 7.5, QR-06 Verification, ADR-006; RISK-02.**
+
+##### ADDITIONAL SCENARIO S3: The contract failure is visible in the run history
+
+**Scenario ID**: OPS-INFRA-003.2-S3
+
+**GIVEN**
+* The workflow run for commit `4d5e6f7` failed at the contract-check step
+
+**WHEN**
+* I inspect the GitHub Actions run history for that commit
+
+**THEN**
+* The run history shows the failed step name `contract-check` with conclusion `failure`
+* No stages 6–7 appear in the run log
+* `ghcr.io/OWNER/rover-service:latest` still resolves to commit `1a2b3c4`
+
+Not applicable - no simulation data store: the contract check compares generated schemas in memory; no simulation data or schema artefact is persisted (ADR-001, TC-4, Ch. 4.1; ADR-007 has no static spec file).
+Not applicable - no events: contract checks run inside the synchronous CI workflow; the service interaction remains a synchronous `POST /simulate` HTTP request/response (ADR-007, Ch. 3.2).
+
+### Traceability
+
+| Scenario ID | Parent story | Architecture section | Testable assertion (THEN) |
+|-------------|--------------|----------------------|---------------------------|
+| OPS-STORY-004-S1 | OPS-STORY-004 | CV-5; ADR-007; Ch. 5.2 | `/simulate` `post`, exact schema fields, status `200`, exact body |
+| OPS-STORY-004-S2 | OPS-STORY-004 | RISK-02; Ch. 7.5; ADR-006 | contract step fails, job `failure`, no tag, `latest` unchanged |
+| OPS-BE-004.1-S1 | OPS-BE-004.1 → OPS-STORY-004 | ADR-007; CV-5; RISK-02 | zero differing fields, exact model field names |
+| OPS-BE-004.1-S2 | OPS-BE-004.1 → OPS-STORY-004 | RISK-02; DEBT-02 | `AssertionError` naming `heading` and `direction` |
+| OPS-INFRA-003.1-S3 | OPS-INFRA-003.1 → OPS-STORY-004 (reused) | Ch. 7.5; RISK-02; ADR-006 | contract step non-zero, job `failure`, no push or tag |
+| OPS-INFRA-003.2-S3 | OPS-INFRA-003.2 → OPS-STORY-004 (reused) | QR-06 Verification; RISK-02 | run history shows failed `contract-check`, stages 6–7 absent |
