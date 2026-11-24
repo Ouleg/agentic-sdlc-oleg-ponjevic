@@ -169,3 +169,145 @@ Not applicable - no asynchronous messaging: push and PR events start the workflo
 | OPS-INFRA-003.1-S2 | OPS-INFRA-003.1 → OPS-STORY-003 | Ch. 7.5 stages 5–6, Ch. 7.4; ADR-009 | stages 1→7, SHA + `latest` pushed, no cloud config |
 | OPS-INFRA-003.2-S1 | OPS-INFRA-003.2 → OPS-STORY-003 | QR-06 Verification; ADR-006 | job `failure` at stage 3, stages 4–7 absent, no tag |
 | OPS-INFRA-003.2-S2 | OPS-INFRA-003.2 → OPS-STORY-003 | Ch. 7.5 stage 7; QR-05 | smoke step success, status `200`, exact result body |
+
+---
+
+## OPS-STORY-001 — Run a published image tag locally
+
+**AS A** developer
+**I WANT** to pull and run a published GHCR image tag with one command
+**SO THAT** anyone with Docker can try the service without a cloud account
+
+**Architecture:** Infrastructure overview (Ch. 7.1–7.2) · Container configuration (Ch. 7.3) · Image registry and access (Ch. 7.4) · Smoke test (Ch. 7.5 stage 7) · Environments (Ch. 7.6) · QR-05 · RISK-03 · ADR-009 · Glossary: Published Image Tag
+**Priority:** 5 · Supporting
+**Depends on:** OPS-STORY-003 (publishes the tag) and NAV-STORY-001 (provides the image contents)
+**Implementation order:** OPS-INFRA-001.1 → reuse NAV-INFRA-001.2 with the added scenario below → end-to-end scenarios below (no backend or frontend component changes)
+
+### SCENARIO 1: One command pulls and starts a published tag
+
+**Scenario ID**: OPS-STORY-001-S1
+
+**GIVEN**
+* Docker is installed on the workstation
+* The tag `ghcr.io/OWNER/rover-service:1a2b3c4` is published in GHCR (OPS-STORY-003)
+* The tag is not in the local image cache
+* The developer has no cloud account and no GHCR credentials (public image, Ch. 7.4)
+
+**WHEN**
+* I run `docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/OWNER/rover-service:1a2b3c4`
+
+**THEN**
+* The command output shows the image being pulled from GHCR and then a running container
+* No `docker login`, IAM role or cloud account configuration is used
+* `POST http://127.0.0.1:8000/simulate` with the body from NAV-STORY-001-S1 returns status `200`
+* The response body is `{"position": {"x": 2, "y": 2}, "heading": "E", "blocked": []}`
+
+### SCENARIO 2: The `latest` tag runs the same API
+
+**Scenario ID**: OPS-STORY-001-S2
+
+**GIVEN**
+* `ghcr.io/OWNER/rover-service:latest` points to the image built from commit `1a2b3c4` on `main` (Ch. 7.4, Ch. 7.6)
+
+**WHEN**
+* I run `docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/OWNER/rover-service:latest`
+
+**THEN**
+* The container is running and the mapped port is `127.0.0.1:8000`
+* `POST http://127.0.0.1:8000/simulate` with the body from NAV-STORY-001-S1 returns status `200`
+* The response body is `{"position": {"x": 2, "y": 2}, "heading": "E", "blocked": []}`
+
+### Frontend sub-stories
+
+Not applicable - the system has no user interface (Ch. 3.4).
+
+### Backend sub-stories
+
+Not applicable - no application component changes; the published image already contains the Rover Service and its `POST /simulate` route (Ch. 5.1, ADR-009).
+
+### Infrastructure sub-stories
+
+#### OPS-INFRA-001.1 — Pull and run a published GHCR tag with one command
+
+**AS A** developer
+**I WANT** a single `docker run` command to pull a published tag and start the Rover Service
+**SO THAT** local smoke tests use the released artefact instead of a source build
+
+**Architecture:** Ch. 7.1–7.2 (local Docker Engine, GHCR) · Ch. 7.3 (port, Uvicorn, `LOG_LEVEL`) · Ch. 7.4 (public pull, tags) · Ch. 7.6 (Published Image Tag environment) · QR-05 · RISK-03 · ADR-009
+
+##### SCENARIO 1: An uncached tag is pulled and started by `docker run`
+
+**Scenario ID**: OPS-INFRA-001.1-S1
+
+**GIVEN**
+* `ghcr.io/OWNER/rover-service:1a2b3c4` is published and absent from the local image cache
+
+**WHEN**
+* I run `docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/OWNER/rover-service:1a2b3c4`
+
+**THEN**
+* The command output shows the image being pulled from `ghcr.io/OWNER/rover-service:1a2b3c4`
+* A container ID is printed and the container remains running
+* No local `docker build` step runs
+
+##### SCENARIO 2: A pre-pulled tag starts without a second pull
+
+**Scenario ID**: OPS-INFRA-001.1-S2
+
+**GIVEN**
+* `docker pull ghcr.io/OWNER/rover-service:1a2b3c4` completed successfully (RISK-03 mitigation)
+
+**WHEN**
+* I run `docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/OWNER/rover-service:1a2b3c4`
+
+**THEN**
+* The command output contains no `Pulling` step
+* `POST http://127.0.0.1:8000/simulate` with the body from NAV-STORY-001-S1 returns status `200` and the body `{"position": {"x": 2, "y": 2}, "heading": "E", "blocked": []}`
+
+##### SCENARIO 3: An unpublished tag does not start a container
+
+**Scenario ID**: OPS-INFRA-001.1-S3
+
+**GIVEN**
+* No tag `ghcr.io/OWNER/rover-service:does-not-exist` exists in GHCR (Ch. 7.4 publishes only SHA tags and `latest`)
+
+**WHEN**
+* I run `docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/OWNER/rover-service:does-not-exist`
+
+**THEN**
+* The command exits with a non-zero status
+* No container from that tag is running
+* No local image build is attempted
+
+---
+
+**Reused `NAV-INFRA-001.2` — one structured JSON log entry per request. Architecture: Ch. 8.3, TC-6, QR-08, ADR-005.**
+
+##### ADDITIONAL SCENARIO S4: A request to the published image logs one JSON line
+
+**Scenario ID**: NAV-INFRA-001.2-S4
+
+**GIVEN**
+* The container started from `ghcr.io/OWNER/rover-service:1a2b3c4` is running
+* The current number of lines in `docker logs` is recorded
+
+**WHEN**
+* I send one `POST /simulate` request with the body from NAV-STORY-001-S1
+
+**THEN**
+* `docker logs` shows exactly one new JSON log line for that request
+* The entry has `level` `"INFO"`, `event` `"simulation_complete"`, a `request_id`, `grid` `{"width": 5, "height": 5, "obstacle_count": 0}`, `start` `{"x": 0, "y": 0, "heading": "N"}`, `command_count` `5`, `result` `{"x": 2, "y": 2, "heading": "E", "blocked_count": 0}`, `error` `null` and a numeric `duration_ms`
+
+Not applicable - no simulation data store: the service in the published image is stateless; every request carries its full input (ADR-001, TC-4, Ch. 4.1).
+Not applicable - no events: all interaction with the published image is a synchronous `POST /simulate` HTTP request/response (ADR-007, Ch. 3.2).
+
+### Traceability
+
+| Scenario ID | Parent story | Architecture section | Testable assertion (THEN) |
+|-------------|--------------|----------------------|---------------------------|
+| OPS-STORY-001-S1 | OPS-STORY-001 | Ch. 7.4; Ch. 7.5 stage 7; QR-05; ADR-009 | pull + start in one command, no credentials, status `200`, exact body |
+| OPS-STORY-001-S2 | OPS-STORY-001 | Ch. 7.4; Ch. 7.6; ADR-009 | `latest` on `127.0.0.1:8000`, status `200`, exact body |
+| OPS-INFRA-001.1-S1 | OPS-INFRA-001.1 → OPS-STORY-001 | Ch. 7.1–7.4; ADR-009 | pull shown in output, container ID printed, no build |
+| OPS-INFRA-001.1-S2 | OPS-INFRA-001.1 → OPS-STORY-001 | RISK-03; Ch. 7.4 | no `Pulling` step after pre-pull, status `200`, exact body |
+| OPS-INFRA-001.1-S3 | OPS-INFRA-001.1 → OPS-STORY-001 | Ch. 7.4 | unpublished tag: non-zero exit, no container, no build |
+| NAV-INFRA-001.2-S4 | NAV-INFRA-001.2 → OPS-STORY-001 (reused) | Ch. 8.3; TC-6; QR-08; ADR-005 | one INFO log line with `blocked_count` `0` |
