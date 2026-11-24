@@ -386,7 +386,7 @@ Not applicable - the system has no user interface (Ch. 3.4).
 **I WANT** the FastAPI Route Adapter to catch `ValidationError` as HTTP 400 and let unhandled exceptions become HTTP 500 with a fixed body
 **SO THAT** internal exception detail never leaks to the caller
 
-**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Ch. 8.1–8.2 (error-handling pattern) · Ch. 8.4 (no internal detail) · ADR-007 · QR-09
+**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Ch. 8.1–8.2 (error-handling pattern) · Ch. 8.2 (no internal detail) · ADR-007 · QR-09
 
 ##### SCENARIO 1: An unhandled exception becomes 500 with a fixed body
 
@@ -607,7 +607,7 @@ Not applicable - the system has no user interface (Ch. 3.4).
 **I WANT** a contract test that compares the FastAPI-generated schema with schemas derived from `SimulationRequest` and `SimulationResult`
 **SO THAT** a hand-written mapping change cannot silently diverge (RISK-02)
 
-**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Domain types (Ch. 5.2, ADR-004) · ADR-007 · CV-5 · RISK-02 · DEBT-02 · QR-07
+**Architecture:** FastAPI Route Adapter (Ch. 5.2) · Domain types (Ch. 5.2, ADR-004) · RISK-02 · DEBT-02 · CV-5 · ADR-007
 
 ##### SCENARIO 1: The generated schemas match the domain types
 

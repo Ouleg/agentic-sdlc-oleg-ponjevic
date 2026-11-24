@@ -295,6 +295,7 @@ Not applicable - no events: rejections are returned synchronously in the `POST /
 
 **Architecture:** RISK-01 (body-size cap mitigation), RISK-04 (large grid / long command list, explicit cap plus OpenAPI documentation) · FastAPI Route Adapter (Ch. 5.2) · Ch. 8.4 (untrusted input) · CV-5 (OpenAPI schema) · ADR-007 · DEBT-04 · Ch. 7.1 (single container)
 **Body-size cap:** 65536 bytes (64 KiB), fixed in Ch. 8.1 and RISK-04 (Mitigation); enforced by the FastAPI Route Adapter before deserialisation, answered with HTTP 413 and documented in `/openapi.json`.
+**Canonical serialization:** body bytes are the UTF-8 encoding of `json.dumps(payload, separators=(",", ":"))` with key order `start`, `grid`, `commands`. For the 1 × 1 grid request below the constant prefix `{"start":{"x":0,"y":0,"heading":"N"},"grid":{"width":1,"height":1,"obstacles":[]},"commands":""}` is 96 bytes, so `N` = 65440 characters `F` give exactly 65536 bytes and `N + 1` = 65441 characters `F` give 65537 bytes.
 **Priority:** 8 · Supporting
 **Depends on:** NAV-STORY-001 (Route Adapter, container, `POST /simulate`) and INPUT-STORY-001 (HTTP error mapping)
 **Implementation order:** reuse NAV-INFRA-001.1 / NAV-INFRA-001.2 with the added scenarios below → INPUT-BE-002.1 → end-to-end scenarios below
@@ -306,7 +307,7 @@ Not applicable - no events: rejections are returned synchronously in the `POST /
 **GIVEN**
 * The Rover Service is running
 * `MAX_BODY_BYTES` is 65536 bytes (64 KiB), the cap enforced by the FastAPI Route Adapter (RISK-04)
-* The request body is valid JSON with grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and a `commands` string padded so the whole body is exactly `MAX_BODY_BYTES + 1 = 65537` bytes
+* The request body is the canonical compact JSON from above with grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and `commands` of 65441 characters `F` (`N + 1`), giving exactly 65537 bytes (`MAX_BODY_BYTES + 1`)
 
 **WHEN**
 * I send `POST /simulate` with that body
@@ -323,7 +324,7 @@ Not applicable - no events: rejections are returned synchronously in the `POST /
 
 **GIVEN**
 * The Rover Service is running
-* The request body has grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and `commands` consisting of `N` characters `F`, where `N` is chosen so the whole body is exactly `MAX_BODY_BYTES` = 65536 bytes
+* The request body is the canonical compact JSON from above with grid `{"width": 1, "height": 1, "obstacles": []}`, start `(0, 0)` heading `N`, and `commands` consisting of 65440 characters `F` (`N`), giving exactly 65536 bytes (`MAX_BODY_BYTES`)
 
 **WHEN**
 * I send `POST /simulate` with that body
@@ -331,7 +332,7 @@ Not applicable - no events: rejections are returned synchronously in the `POST /
 **THEN**
 * The response status is `200`
 * The final position is `(0, 0)` and the final heading is `N`
-* The `blocked` list has exactly `N` entries, entry `i` being `{"index": i, "reason": "boundary"}` for every `i` from `0` to `N - 1`
+* The `blocked` list has exactly 65440 entries, entry `i` being `{"index": i, "reason": "boundary"}` for every `i` from `0` to `65439`
 
 ### Frontend sub-stories
 
@@ -354,7 +355,7 @@ Not applicable - the system has no user interface (Ch. 3.4).
 **GIVEN**
 * The FastAPI application is started with `TestClient`
 * A spy replaces `Command Executor.execute` and counts calls
-* The body from INPUT-STORY-002-S1 is `MAX_BODY_BYTES + 1 = 65537` bytes
+* The body from INPUT-STORY-002-S1 uses 65441 characters `F` (`N + 1`) and is exactly 65537 bytes
 
 **WHEN**
 * I post that body to `/simulate`
@@ -370,14 +371,14 @@ Not applicable - the system has no user interface (Ch. 3.4).
 
 **GIVEN**
 * The FastAPI application is started with `TestClient`
-* The body from INPUT-STORY-002-S2 is exactly `MAX_BODY_BYTES` = 65536 bytes
+* The body from INPUT-STORY-002-S2 uses 65440 characters `F` (`N`) and is exactly 65536 bytes
 
 **WHEN**
 * I post that body to `/simulate`
 
 **THEN**
 * The response status is `200`
-* The body is `{"position": {"x": 0, "y": 0}, "heading": "N", "blocked": [...]}` where the `blocked` array has `N` entries `{"index": i, "reason": "boundary"}`
+* The body is `{"position": {"x": 0, "y": 0}, "heading": "N", "blocked": [...]}` where the `blocked` array has 65440 entries `{"index": i, "reason": "boundary"}` for `i` from `0` to `65439`
 
 ##### SCENARIO 3: The cap is documented in the generated contract
 
@@ -440,10 +441,10 @@ Not applicable - no events: rejections are returned synchronously as HTTP 413 re
 
 | Scenario ID | Parent story | Architecture section | Testable assertion (THEN) |
 |-------------|--------------|----------------------|---------------------------|
-| INPUT-STORY-002-S1 | INPUT-STORY-002 | RISK-01, RISK-04; Ch. 8.4 | status `413`, one `error` field, next valid request `200` |
-| INPUT-STORY-002-S2 | INPUT-STORY-002 | RISK-04; FR-5; ADR-008 | status `200`, `(0, 0)`/`N`, `N` boundary blocks with indices `0..N-1` |
-| INPUT-BE-002.1-S1 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 5.2 Route Adapter; RISK-04; DEBT-04 | status `413`, `error` field, `execute` called zero times |
-| INPUT-BE-002.1-S2 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 8.1; ADR-008 | status `200`, exact body with `N` boundary blocks |
+| INPUT-STORY-002-S1 | INPUT-STORY-002 | RISK-01, RISK-04; Ch. 8.4 | 65441 `F` / 65537 bytes: status `413`, one `error` field, next valid request `200` |
+| INPUT-STORY-002-S2 | INPUT-STORY-002 | RISK-04; FR-5; ADR-008 | 65440 `F` / 65536 bytes: status `200`, `(0, 0)`/`N`, 65440 boundary blocks with indices `0..65439` |
+| INPUT-BE-002.1-S1 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 5.2 Route Adapter; RISK-04; DEBT-04 | 65441 `F` / 65537 bytes: status `413`, `error` field, `execute` called zero times |
+| INPUT-BE-002.1-S2 | INPUT-BE-002.1 → INPUT-STORY-002 | Ch. 8.1; ADR-008 | 65440 `F` / 65536 bytes: status `200`, exact body with 65440 boundary blocks |
 | INPUT-BE-002.1-S3 | INPUT-BE-002.1 → INPUT-STORY-002 | CV-5; ADR-007; RISK-04 | `/openapi.json` contains `65536` (`MAX_BODY_BYTES`) and `/simulate` `post` |
 | NAV-INFRA-001.1-S6 | NAV-INFRA-001.1 → INPUT-STORY-002 (reused) | Ch. 7.1–7.3; RISK-04; ADR-009 | `413` then `200`, same container ID still running |
 | NAV-INFRA-001.2-S7 | NAV-INFRA-001.2 → INPUT-STORY-002 (reused) | Ch. 8.3; QR-08; ADR-005 | one WARNING `payload_too_large` line, non-empty `error`, no INFO success line |

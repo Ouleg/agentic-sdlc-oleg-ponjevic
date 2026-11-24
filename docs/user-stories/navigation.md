@@ -26,7 +26,7 @@ Domain: `NAV` (Rover Navigation). Coordinate convention from the Glossary (Ch. 1
 * The rover starts at `(0, 0)` heading `N`
 
 **WHEN**
-* I send `POST /simulate` with commands `"FFRFF"`
+* I send `POST /simulate` with `{"start": {"x": 0, "y": 0, "heading": "N"}, "grid": {"width": 5, "height": 5, "obstacles": []}, "commands": "FFRFF"}`
 
 **THEN**
 * The response status is `200`
