@@ -346,3 +346,56 @@ new decision.
   is the release identifier.
 - Chapters 2–8, 10 and 11 use container terminology and the diagrams are re-rendered;
   domain tests are unaffected.
+
+---
+
+## ADR-010: Cap request bodies at 64 KiB
+
+**Status:** Accepted
+
+**Context:**
+RISK-01 and RISK-04 require an explicit request-body cap so a single oversized
+JSON body cannot exhaust memory or stall the event loop in the one container,
+but neither risk fixes a number. The value was decided while deriving
+INPUT-STORY-002 ("Reject oversized request bodies"), whose scenarios need
+byte-exact boundary inputs for the canonical compact JSON serialization of a
+Simulation Request. `POST /simulate` is the only endpoint that accepts a body,
+and a realistic request for this kata is far smaller than 64 KiB.
+
+**Decision:**
+- `MAX_BODY_BYTES = 65536` bytes (64 KiB). The FastAPI Route Adapter measures the
+  raw body and enforces the cap before JSON deserialisation; no `Validator` or
+  `Command Executor` call follows a rejection.
+- A body larger than 65536 bytes returns HTTP 413 with a single `error` field,
+  `{"error": "<message>"}`; the message text is not part of the contract.
+- The Route Adapter writes one structured `WARNING` log entry with `event`
+  `payload_too_large` via the Logger Adapter (ADR-005).
+- The 65536-byte cap is published in the generated `/openapi.json` (ADR-007, CV-5).
+
+**Alternatives considered:**
+- **No cap:** rejected — an arbitrarily large body can cause an OOM kill or stall
+  the event loop, and there is no gateway to return an early 413 (RISK-01, RISK-04).
+- **1 MiB:** rejected — still orders of magnitude above any realistic kata input
+  and permits a much larger memory envelope per caller; 64 KiB is ample for the
+  grid and command string in FR-1 – FR-3.
+- **Limit at Uvicorn or a reverse proxy:** rejected — Uvicorn has no small default
+  body limit and the kata has no proxy; adding one would introduce a component
+  that must run identically on a laptop and in CI (ADR-009). Keeping the check in
+  the Route Adapter makes it testable with `TestClient`.
+
+**Rationale:**
+- 65536 bytes is concrete and testable: with the canonical compact serialization
+  `json.dumps(payload, separators=(",", ":"))`, the 1 × 1 grid request has a
+  96-byte prefix, so 65440 `F` commands give exactly 65536 bytes and 65441 give
+  65537 bytes (INPUT-STORY-002).
+- Enforcing the cap at the boundary preserves the hexagonal split: the domain
+  core stays pure and unaware of HTTP limits.
+
+**Consequences:**
+- Every oversized request is answered with 413 and logged; valid simulations are
+  unaffected.
+- A legitimate grid or command list above 64 KiB is rejected; if large grids
+  become a requirement, evaluate streaming or chunked processing in a new ADR
+  (RISK-04).
+- Ch. 8.1 and RISK-04 state the same cap and mapping; INPUT-STORY-002 scenario
+  assertions depend on the canonical serialization and byte counts above.

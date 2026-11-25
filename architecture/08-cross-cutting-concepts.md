@@ -30,7 +30,7 @@ empty command list (zero commands is valid; the rover stays at the start positio
 65536 bytes is rejected with HTTP 413 `{"error": "<message>"}`; the FastAPI Route
 Adapter logs one `WARNING` entry with `event` `payload_too_large`, and no
 `Validator` or `CommandExecutor` call follows. The 65536-byte cap is published in
-the generated `/openapi.json` (CV-5, ADR-007).
+the generated `/openapi.json` (CV-5, ADR-007, ADR-010).
 
 ## 8.2 Error Handling
 
