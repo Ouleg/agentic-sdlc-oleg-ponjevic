@@ -79,3 +79,39 @@ def test_nav_be_002_2_s1_an_obstacle_block_and_a_boundary_block_are_both_accumul
         BlockedMove(index=0, reason="obstacle"),
         BlockedMove(index=3, reason="boundary"),
     ]
+
+
+def test_nav_be_002_2_s2_indices_count_all_commands_including_skipped_ones():
+    """NAV-BE-002.2-S2"""
+    # GIVEN
+    request = SimulationRequest(
+        start=Position(0, 0),
+        heading=Heading.W,
+        grid=Grid(width=2, height=2),
+        commands=[
+            Command.F,
+            Command.F,
+            Command.L,
+            Command.F,
+            Command.F,
+            Command.R,
+            Command.F,
+            Command.F,
+        ],
+    )
+    executor = CommandExecutor()
+
+    # WHEN
+    result = executor.execute(request)
+
+    # THEN
+    assert result.position == Position(0, 0)
+    assert result.heading is Heading.W
+    assert result.blocked == [
+        BlockedMove(index=0, reason="boundary"),
+        BlockedMove(index=1, reason="boundary"),
+        BlockedMove(index=3, reason="boundary"),
+        BlockedMove(index=4, reason="boundary"),
+        BlockedMove(index=6, reason="boundary"),
+        BlockedMove(index=7, reason="boundary"),
+    ]
