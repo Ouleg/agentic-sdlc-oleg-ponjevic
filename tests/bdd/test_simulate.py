@@ -100,3 +100,12 @@ def the_final_f_commands_are_executed(context):
     result = context["response"].json()
     assert all(entry["index"] <= 3 for entry in result["blocked"])
     assert result["position"]["x"] == 2
+
+
+@then("the turns at indices 2 (L) and 5 (R) are executed between blocks")
+def the_turns_between_blocks_are_executed(context):
+    result = context["response"].json()
+    blocked_indices = {entry["index"] for entry in result["blocked"]}
+    assert 2 not in blocked_indices
+    assert 5 not in blocked_indices
+    assert result["heading"] == "W"
