@@ -133,6 +133,8 @@ Every original story has INFRA sub-stories. Consider these four concerns, adapte
 3. **Events** - asynchronous messaging (for this project: none - all interaction is a synchronous HTTP request/response)
 4. **Monitoring** - how the story is observed (for this project: one structured JSON log entry per request to stdout, read with `docker logs`, Chapter 8.3)
 
+5. **Test environment** - the kata is built and tested locally in Docker, never in a cloud: `docker build -t kata-tests .` + `docker run --rm kata-tests` runs `pytest` inside the container (Dockerfile from Module 4, CI workflow `.github/workflows/ci.yml`). The first core story has an INFRA sub-story "Build and test the kata in Docker" that is implemented FIRST and covers: the Dockerfile builds successfully; dependencies from `requirements.txt` are installed in the image; the project structure (`src/` layout on `PYTHONPATH`, `tests/` folder) supports pytest discovery; the full test suite runs inside the container and exits 0. Later stories reuse it by ID. INFRA stories never reference Lambda, DynamoDB, SAM or CloudFormation.
+
 Write a real INFRA sub-story with scenarios for every concern that applies. For every concern that does not apply, add one line under "Infrastructure sub-stories" saying `Not applicable - <reason> (<architecture reference>)`, so the reviewer can see it was considered. Never invent infrastructure that the architecture does not contain (no cloud services, databases, queues or caches unless an ADR introduces them). Do not repeat identical INFRA sub-stories in every bundle: if a later story only reuses existing infrastructure, reference the earlier INFRA sub-story ID and add only a scenario specific to the new story.
 
 ## Architecture Reference Rules
