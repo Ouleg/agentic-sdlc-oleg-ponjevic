@@ -14,7 +14,7 @@ Domain: `NAV` (Rover Navigation). Coordinate convention from the Glossary (Ch. 1
 **Architecture:** FR-1 – FR-4, FR-6 (Ch. 1.2) · Rover Service container (Ch. 5.1) · Runtime scenario 6.1 · ADR-002, ADR-009
 **Priority:** 1 · Core (Pareto 20%)
 **Depends on:** none
-**Implementation order:** NAV-INFRA-001.1 → NAV-BE-001.1 → NAV-BE-001.2 → NAV-BE-001.3 → NAV-INFRA-001.2 → end-to-end scenarios below
+**Implementation order:** NAV-INFRA-001.3 → NAV-BE-001.1 → NAV-BE-001.2 → NAV-BE-001.3 → NAV-INFRA-001.1 → NAV-INFRA-001.2 → end-to-end scenarios below
 
 ### SCENARIO 1: Rover moves and turns to the expected final position
 
@@ -186,6 +186,78 @@ Not applicable - the system has no user interface (Ch. 3.4).
 
 ### Infrastructure sub-stories
 
+#### NAV-INFRA-001.3 — Build and test the kata in Docker
+
+**AS A** developer
+**I WANT** the kata's full test suite to build and run inside a local Docker image
+**SO THAT** every story is verified in the same container the CI workflow uses, without a cloud account
+
+**Architecture:** Source layout with `Dockerfile` (Ch. 5.3) · Deployment pipeline stages 3–5 (Ch. 7.5) · Testability (Ch. 8.5) · TC-5 · QR-01, QR-05 · ADR-001 (pytest/pytest-bdd) · ADR-009 · test image built by `Dockerfile` and run by `.github/workflows/ci.yml`
+
+##### SCENARIO 1: The test image builds from the Dockerfile
+
+**Scenario ID**: NAV-INFRA-001.3-S1
+
+**GIVEN**
+* The repository is freshly checked out with `Dockerfile`, `requirements.txt`, `src/` and `tests/` present
+* Docker Engine is available on the local workstation
+
+**WHEN**
+* I run `docker build -t kata-tests .`
+
+**THEN**
+* The command exits with status code `0`
+* `docker image inspect kata-tests --format '{{.Id}}'` prints a non-empty image ID
+
+##### SCENARIO 2: The pinned dependency from requirements.txt is installed in the image
+
+**Scenario ID**: NAV-INFRA-001.3-S2
+
+**GIVEN**
+* `requirements.txt` contains the exact line `pytest==8.4.2`
+* The image `kata-tests` was built with `docker build -t kata-tests .`
+
+**WHEN**
+* I run `docker run --rm kata-tests`
+
+**THEN**
+* The pytest header in the output contains `pytest-8.4.2`
+* The output contains no `No module named pytest` error
+
+##### SCENARIO 3: src/ is on PYTHONPATH and tests/ are discovered
+
+**Scenario ID**: NAV-INFRA-001.3-S3
+
+**GIVEN**
+* `Dockerfile` sets `PYTHONPATH=/app/src`, copies `src/` to `/app/src` and `tests/` to `/app/tests`, and sets `CMD ["pytest", "tests/", "-v", "--tb=short"]` (Ch. 5.3)
+* `tests/test_smoke.py` defines `test_rover_package_is_importable` and `test_rover_package_has_version`
+
+**WHEN**
+* I run `docker run --rm kata-tests`
+
+**THEN**
+* The output contains `collected N items` with `N >= 2`
+* The output includes `tests/test_smoke.py::test_rover_package_is_importable PASSED` and `tests/test_smoke.py::test_rover_package_has_version PASSED` among the N collected items
+* The output contains no `ModuleNotFoundError: No module named 'rover'`
+
+##### SCENARIO 4: The full suite passes inside the container
+
+**Scenario ID**: NAV-INFRA-001.3-S4
+
+**GIVEN**
+* The image `kata-tests` was built with `docker build -t kata-tests .`
+* The container command is `pytest tests/ -v --tb=short`, which runs every test file under `tests/` (Dockerfile, Ch. 5.3)
+
+**WHEN**
+* I run `docker run --rm kata-tests` and record its exit status
+
+**THEN**
+* The recorded exit status is `0`
+* The final summary line reports `N passed` and `0 failed` (no `failed` count appears), where N equals the number of `collected items` reported earlier in the same run
+* The output contains no `FAILED` and no `ERROR` line
+
+---
+
 #### NAV-INFRA-001.1 — Run the Rover Service in a Docker container
 
 **AS A** developer
@@ -262,6 +334,10 @@ Not applicable - no events: all interaction is a synchronous `POST /simulate` HT
 | NAV-BE-001.2-S2 | NAV-BE-001.2 → NAV-STORY-001 | QR-02; ADR-004 | two results are equal |
 | NAV-BE-001.3-S1 | NAV-BE-001.3 → NAV-STORY-001 | Ch. 5.2 Route Adapter; FR-6 | status `200`, exact JSON body |
 | NAV-BE-001.3-S2 | NAV-BE-001.3 → NAV-STORY-001 | CV-5; ADR-007 | `/simulate` `post` in OpenAPI |
+| NAV-INFRA-001.3-S1 | NAV-INFRA-001.3 → NAV-STORY-001 | Ch. 5.3; Ch. 7.5 stage 5; QR-05; ADR-009 | `docker build -t kata-tests .` exits `0`, image ID exists |
+| NAV-INFRA-001.3-S2 | NAV-INFRA-001.3 → NAV-STORY-001 | Ch. 8.5; TC-5; ADR-001 | `pytest-8.4.2` in pytest header, no missing-module error |
+| NAV-INFRA-001.3-S3 | NAV-INFRA-001.3 → NAV-STORY-001 | Ch. 5.3; Ch. 8.5; TC-5 | `collected N items` with `N >= 2`, both smoke tests `PASSED`, no `ModuleNotFoundError` |
+| NAV-INFRA-001.3-S4 | NAV-INFRA-001.3 → NAV-STORY-001 | Ch. 7.5 stages 3–4; QR-01; ADR-009 | exit status `0`, summary `N passed` / `0 failed` with `N` = collected items, no `FAILED`/`ERROR` |
 | NAV-INFRA-001.1-S1 | NAV-INFRA-001.1 → NAV-STORY-001 | Ch. 7.1–7.3; ADR-009 | container running, `200` on localhost |
 | NAV-INFRA-001.1-S2 | NAV-INFRA-001.1 → NAV-STORY-001 | RISK-01 | port bound to `127.0.0.1` |
 | NAV-INFRA-001.2-S1 | NAV-INFRA-001.2 → NAV-STORY-001 | Ch. 8.3; QR-08; ADR-005 | exactly one JSON log line with required fields |
