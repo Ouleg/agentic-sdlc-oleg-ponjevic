@@ -75,3 +75,21 @@ def test_nav_be_002_1_s1_forward_into_an_obstacle_is_blocked():
     assert result.reason == "obstacle"
     assert position == Position(0, 1)
     assert heading is Heading.E
+
+
+def test_nav_be_002_1_s2_forward_off_the_grid_is_blocked():
+    """NAV-BE-002.1-S2"""
+    # GIVEN
+    grid = Grid(width=3, height=3)
+    position = Position(0, 2)
+    heading = Heading.N
+    navigator = Navigator()
+
+    # WHEN
+    result = navigator.apply(Command.F, position, heading, grid)
+
+    # THEN
+    assert isinstance(result, BlockedMove)
+    assert result.reason == "boundary"
+    assert position == Position(0, 2)
+    assert heading is Heading.N

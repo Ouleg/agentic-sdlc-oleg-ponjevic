@@ -42,6 +42,8 @@ class Navigator:
         if command is Command.F:
             dx, dy = _FORWARD_STEPS[heading]
             target = Position(x=position.x + dx, y=position.y + dy)
+            if not (0 <= target.x < grid.width and 0 <= target.y < grid.height):
+                return BlockedMove(index=_UNINDEXED, reason="boundary")
             if target in grid.obstacles:
                 return BlockedMove(index=_UNINDEXED, reason="obstacle")
             return target
