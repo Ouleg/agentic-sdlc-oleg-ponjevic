@@ -2,7 +2,7 @@ from rover.domain.model import Command, Grid, Heading, Position
 from rover.domain.navigator import Navigator
 
 
-def test_turning_left_rotates_heading_anticlockwise():
+def test_nav_be_001_1_s1_turning_left_rotates_heading_anticlockwise():
     """NAV-BE-001.1-S1"""
     # GIVEN
     grid = Grid(width=5, height=5)
