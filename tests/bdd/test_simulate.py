@@ -42,6 +42,14 @@ def i_send_post_simulate(client, context, docstring):
     context["response"] = client.post("/simulate", json=body)
 
 
+@when('I send POST /simulate with commands ""')
+def i_send_post_simulate_with_empty_commands(client, context):
+    context["response"] = client.post(
+        "/simulate",
+        json={"start": context["start"], "grid": context["grid"], "commands": ""},
+    )
+
+
 @then(parsers.parse("the response status is {status:d}"))
 def the_response_status_is(context, status):
     assert context["response"].status_code == status

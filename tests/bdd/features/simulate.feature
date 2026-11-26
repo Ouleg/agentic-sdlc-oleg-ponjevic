@@ -12,3 +12,13 @@ Feature: Execute a command sequence
     And the final position is (2, 2)
     And the final heading is E
     And the blocked list is empty
+
+  Scenario: Empty command string leaves the rover where it started
+    Given the Rover Service is running
+    And a 5 × 5 grid with no obstacles
+    And the rover starts at (3, 1) heading W
+    When I send POST /simulate with commands ""
+    Then the response status is 200
+    And the final position is (3, 1)
+    And the final heading is W
+    And the blocked list is empty
