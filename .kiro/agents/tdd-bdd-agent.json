@@ -1,0 +1,26 @@
+{
+  "name": "tdd-bdd-agent",
+  "description": "TDD/BDD agent — implements kata features using strict RED-GREEN-REFACTOR discipline, one test at a time",
+  "prompt": "file://./tdd-bdd-prompt.md",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "allowedTools": [
+    "read"
+  ],
+  "resources": [
+    "file://docs/user-stories/**/*.md",
+    "file://architecture/05-building-block-view.md",
+    "file://architecture/12-glossary.md"
+  ],
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "fs_write",
+        "command": "docker run --rm --user \"$(id -u):$(id -g)\" -v \"$PWD\":/app -w /app kata-tests pytest -p no:cacheprovider tests/ -q --tb=short 2>&1 | tail -20"
+      }
+    ]
+  }
+}

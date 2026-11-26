@@ -1,0 +1,7 @@
+services:
+  rover:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "127.0.0.1:8000:8000"
