@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Literal
 
 
 class Heading(Enum):
@@ -28,3 +29,24 @@ class Grid:
     width: int
     height: int
     obstacles: frozenset[Position] = field(default_factory=frozenset)
+
+
+@dataclass(frozen=True)
+class SimulationRequest:
+    start: Position
+    heading: Heading
+    grid: Grid
+    commands: list[Command]
+
+
+@dataclass(frozen=True)
+class BlockedMove:
+    index: int
+    reason: Literal["obstacle", "boundary"]
+
+
+@dataclass(frozen=True)
+class SimulationResult:
+    position: Position
+    heading: Heading
+    blocked: list[BlockedMove] = field(default_factory=list)
