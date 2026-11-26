@@ -18,12 +18,12 @@ class CommandExecutor:
         position = request.start
         heading = request.heading
         blocked: list[BlockedMove] = []
-        for command in request.commands:
+        for index, command in enumerate(request.commands):
             outcome = self._navigator.apply(command, position, heading, request.grid)
             if isinstance(outcome, Position):
                 position = outcome
             elif isinstance(outcome, Heading):
                 heading = outcome
             elif isinstance(outcome, BlockedMove):
-                continue
+                blocked.append(BlockedMove(index=index, reason=outcome.reason))
         return SimulationResult(position=position, heading=heading, blocked=blocked)

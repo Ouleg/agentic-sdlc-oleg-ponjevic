@@ -1,5 +1,6 @@
 from rover.domain.executor import CommandExecutor
 from rover.domain.model import (
+    BlockedMove,
     Command,
     Grid,
     Heading,
@@ -47,3 +48,34 @@ def test_nav_be_001_2_s2_the_same_request_always_gives_the_same_result():
 
     # THEN
     assert first_result == second_result
+
+
+def test_nav_be_002_2_s1_an_obstacle_block_and_a_boundary_block_are_both_accumulated():
+    """NAV-BE-002.2-S1"""
+    # GIVEN
+    request = SimulationRequest(
+        start=Position(0, 1),
+        heading=Heading.E,
+        grid=Grid(width=3, height=3, obstacles=frozenset({Position(1, 1)})),
+        commands=[
+            Command.F,
+            Command.L,
+            Command.F,
+            Command.F,
+            Command.R,
+            Command.F,
+            Command.F,
+        ],
+    )
+    executor = CommandExecutor()
+
+    # WHEN
+    result = executor.execute(request)
+
+    # THEN
+    assert result.position == Position(2, 2)
+    assert result.heading is Heading.E
+    assert result.blocked == [
+        BlockedMove(index=0, reason="obstacle"),
+        BlockedMove(index=3, reason="boundary"),
+    ]
