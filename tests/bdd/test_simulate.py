@@ -29,9 +29,25 @@ def a_grid_with_no_obstacles(width, height, context):
     context["grid"] = {"width": width, "height": height, "obstacles": []}
 
 
+@given(
+    parsers.parse("a {width:d} × {height:d} grid with one obstacle at ({x:d}, {y:d})")
+)
+def a_grid_with_one_obstacle(width, height, x, y, context):
+    context["grid"] = {
+        "width": width,
+        "height": height,
+        "obstacles": [{"x": x, "y": y}],
+    }
+
+
 @given(parsers.parse("the rover starts at ({x:d}, {y:d}) heading {heading}"))
 def the_rover_starts_at(x, y, heading, context):
     context["start"] = {"x": x, "y": y, "heading": heading}
+
+
+@given(parsers.parse('the Command String is "{commands}"'))
+def the_command_string_is(commands, context):
+    context["commands"] = commands
 
 
 @when("I send POST /simulate with the JSON body")
@@ -39,6 +55,8 @@ def i_send_post_simulate(client, context, docstring):
     body = json.loads(docstring)
     assert body["grid"] == context["grid"]
     assert body["start"] == context["start"]
+    if "commands" in context:
+        assert body["commands"] == context["commands"]
     context["response"] = client.post("/simulate", json=body)
 
 
@@ -68,3 +86,17 @@ def the_final_heading_is(context, heading):
 @then("the blocked list is empty")
 def the_blocked_list_is_empty(context):
     assert context["response"].json()["blocked"] == []
+
+
+@then(parsers.parse("the blocked list is exactly {blocked}"))
+def the_blocked_list_is_exactly(context, blocked):
+    assert context["response"].json()["blocked"] == json.loads(blocked)
+
+
+@then(
+    "the F commands at indices 5 and 6 are executed after the boundary block at index 3"
+)
+def the_final_f_commands_are_executed(context):
+    result = context["response"].json()
+    assert all(entry["index"] <= 3 for entry in result["blocked"])
+    assert result["position"]["x"] == 2
