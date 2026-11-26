@@ -93,3 +93,22 @@ def test_nav_be_002_1_s2_forward_off_the_grid_is_blocked():
     assert result.reason == "boundary"
     assert position == Position(0, 2)
     assert heading is Heading.N
+
+
+def test_nav_be_002_1_s3_a_turn_at_a_grid_corner_never_produces_a_blocked_move():
+    """NAV-BE-002.1-S3"""
+    # GIVEN
+    grid = Grid(width=3, height=3)
+    position = Position(2, 2)
+    heading = Heading.N
+    navigator = Navigator()
+
+    # WHEN
+    left = navigator.apply(Command.L, position, heading, grid)
+    right = navigator.apply(Command.R, position, left, grid)
+
+    # THEN
+    assert not isinstance(left, BlockedMove)
+    assert not isinstance(right, BlockedMove)
+    assert left == Heading.W
+    assert right == Heading.N
