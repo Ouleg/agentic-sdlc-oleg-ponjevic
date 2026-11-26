@@ -1,4 +1,4 @@
-from rover.domain.model import Command, Grid, Heading, Position
+from rover.domain.model import BlockedMove, Command, Grid, Heading, Position
 from rover.domain.navigator import Navigator
 
 
@@ -11,11 +11,11 @@ def test_nav_be_001_1_s1_turning_left_rotates_heading_anticlockwise():
     navigator = Navigator()
 
     # WHEN
-    new_position, new_heading = navigator.apply(Command.L, position, heading, grid)
+    new_heading = navigator.apply(Command.L, position, heading, grid)
 
     # THEN
     assert new_heading == Heading.W
-    assert new_position == Position(2, 2)
+    assert position == Position(2, 2)
 
 
 def test_nav_be_001_1_s2_four_right_turns_return_to_original_heading():
@@ -29,7 +29,7 @@ def test_nav_be_001_1_s2_four_right_turns_return_to_original_heading():
     # WHEN
     headings = []
     for _ in range(4):
-        position, heading = navigator.apply(Command.R, position, heading, grid)
+        heading = navigator.apply(Command.R, position, heading, grid)
         headings.append(heading)
 
     # THEN
@@ -50,10 +50,28 @@ def test_nav_be_001_1_s3_moving_forward_follows_the_heading():
     ]
 
     # THEN
-    assert [new_position for new_position, _ in moves] == [
+    assert moves == [
         Position(1, 2),
         Position(2, 1),
         Position(1, 0),
         Position(0, 1),
     ]
-    assert [new_heading for _, new_heading in moves] == headings
+    assert headings == [Heading.N, Heading.E, Heading.S, Heading.W]
+
+
+def test_nav_be_002_1_s1_forward_into_an_obstacle_is_blocked():
+    """NAV-BE-002.1-S1"""
+    # GIVEN
+    grid = Grid(width=3, height=3, obstacles=frozenset({Position(1, 1)}))
+    position = Position(0, 1)
+    heading = Heading.E
+    navigator = Navigator()
+
+    # WHEN
+    result = navigator.apply(Command.F, position, heading, grid)
+
+    # THEN
+    assert isinstance(result, BlockedMove)
+    assert result.reason == "obstacle"
+    assert position == Position(0, 1)
+    assert heading is Heading.E

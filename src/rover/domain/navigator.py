@@ -1,6 +1,9 @@
 """Navigator: applies a single command to the rover (Ch. 5.2, ADR-002)."""
 
-from rover.domain.model import Command, Grid, Heading, Position
+from rover.domain.model import BlockedMove, Command, Grid, Heading, Position
+
+# Navigator has no Command List index; the Executor assigns it (Ch. 5.2).
+_UNINDEXED = 0
 
 # Turn Left rotates the heading 90° anticlockwise (Ch. 12 Glossary)
 _LEFT_OF = {
@@ -35,8 +38,11 @@ _FORWARD_STEPS = {
 class Navigator:
     def apply(
         self, command: Command, position: Position, heading: Heading, grid: Grid
-    ) -> tuple[Position, Heading]:
+    ) -> Position | Heading | BlockedMove:
         if command is Command.F:
             dx, dy = _FORWARD_STEPS[heading]
-            return Position(position.x + dx, position.y + dy), heading
-        return position, _TURNS[command][heading]
+            target = Position(x=position.x + dx, y=position.y + dy)
+            if target in grid.obstacles:
+                return BlockedMove(index=_UNINDEXED, reason="obstacle")
+            return target
+        return _TURNS[command][heading]

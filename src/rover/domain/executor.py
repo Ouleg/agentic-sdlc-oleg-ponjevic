@@ -1,6 +1,12 @@
 """Command Executor: runs a Simulation Request (Ch. 5.2, ADR-002)."""
 
-from rover.domain.model import SimulationRequest, SimulationResult
+from rover.domain.model import (
+    BlockedMove,
+    Heading,
+    Position,
+    SimulationRequest,
+    SimulationResult,
+)
 from rover.domain.navigator import Navigator
 
 
@@ -11,8 +17,13 @@ class CommandExecutor:
     def execute(self, request: SimulationRequest) -> SimulationResult:
         position = request.start
         heading = request.heading
+        blocked: list[BlockedMove] = []
         for command in request.commands:
-            position, heading = self._navigator.apply(
-                command, position, heading, request.grid
-            )
-        return SimulationResult(position=position, heading=heading)
+            outcome = self._navigator.apply(command, position, heading, request.grid)
+            if isinstance(outcome, Position):
+                position = outcome
+            elif isinstance(outcome, Heading):
+                heading = outcome
+            elif isinstance(outcome, BlockedMove):
+                continue
+        return SimulationResult(position=position, heading=heading, blocked=blocked)
